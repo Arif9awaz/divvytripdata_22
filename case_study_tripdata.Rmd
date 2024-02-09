@@ -1,0 +1,243 @@
+---
+title: "case study bike_share_tripdata"
+author: "Arif Nawaz"
+date: "2023-06-13"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+## case study bike share tripdata from google data anlytics
+
+In this document I mentioned all the code chunks below that how I  found the 
+story from this data about the casual riders in different aspects and came out with some recommendations that how could we convince casual riders to become annual members.
+
+## installing and loading of tidyverse packages 
+
+
+```{r  }
+install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+
+```
+## loading tidyverse packages
+```{r}
+library(tidyverse)
+```
+
+##exploring data
+
+## loading data sets of hot months
+
+
+```{r }
+march_df <- read_csv('202203-divvy-tripdata.csv')
+april_df <- read_csv('202204-divvy-tripdata.csv')
+may_df <- read_csv('202205-divvy-tripdata.csv')
+june_df <- read_csv('202206-divvy-tripdata.csv')
+july_df <- read_csv('202207-divvy-tripdata.csv')
+```
+
+## merging data sets into a single data frame
+
+```{r }
+data_list <- list(march_df,april_df,may_df,june_df,july_df)
+merge_df <- function(df1,df2){merge(df1,df2)}
+data_03_07_22 <- Reduce(merge_df,data_list)
+```
+
+
+## loading data sets of cold months
+    ```{r }
+    df_oct <- read_csv('202210-divvy-tripdata.csv')
+    df_nov <- read_csv('202211-divvy-tripdata.csv')
+    df_dec <- read_csv('202212-divvy-tripdata.csv')
+    df_jan <- read_csv('202201-divvy-tripdata.csv')
+    df_feb <- read_csv('202202-divvy-tripdata.csv')
+    ```
+    
+## merging months dataset into a single dataframe
+    ```{r }
+    list_cold_months <- list(df_oct,df_nov,df_dec,df_jan,df_feb)
+    merge_function_cold_months <- function(df1,df2){merge(df1,df2,all=TRUE)} 
+    data_10_02_22 <- Reduce(merge_function_cold_months,list_cold_months)
+    ```
+## checking the reliability of data
+
+    ```{r }
+    str(data_03_07_22)
+    ```
+    
+    ```{r }
+    glimpse(data_03_07_22)
+    ```
+    
+    ```{r }
+    colnames(data_03_07_22)
+    ```
+## cleaning data set of hot months data_03_07_22
+
+## we have seen that colnames are good however there are some columns 
+## which we would not use in our analysis.so, let's drop these
+
+
+```{r }
+data_03_07_22<- data_03_07_22[, !names(data_03_07_22) %in% c('start_lat','end_lat','start_lng','end_lng')]
+```
+
+## removing empty rows from data_03_07_22 using start_station_name
+
+```{ r}
+data_03_07_22 <- data_03_07_22%>%
+  filter(!is.na(start_station_name))
+```
+
+## cleaning data set of cold months data_10_02_22
+
+## we have seen that colnames are good however there are some columns 
+## which we would not use in our analysis.so, let's drop these
+
+
+```{r }
+data_10_02_22<- data_10_02_22[, !names(data_10_02_22) %in% c('start_lat','end_lat','start_lng','end_lng')]
+```
+
+## removing empty rows from data_10_02_22 using start_station_name
+
+```{r}
+data_10_02_22 <- data_10_02_22%>%
+filter(!is.na(start_station_name))
+```
+
+
+## processing data for analysis
+
+## our goal is to convince the casual riders to become members
+
+## showing difference between casual_member
+# adding a column ride_length to show the difference between both
+```{r}
+data_03_07_22 <- data_03_07_22 %>% 
+mutate(ride_length = started_at-ended_at)
+```
+
+# casual_member average rides
+```{r}
+casual_member_avg_rides <- data_03_07_22 %>% 
+group_by(member_casual) %>% 
+summarize(avg_ride_length= mean(-ride_length)) %>% 
+mutate(avg_ride_length= minute(seconds_to_period(avg_ride_length)))
+```
+
+# plot for member_casual average rides
+```{r}
+ggplot(data = casual_member_avg_rides,aes(x =member_casual,y=avg_ride_length))+
+  geom_bar(stat="identity",aes(fill=member_casual))+
+  geom_text(aes(label=paste0(avg_ride_length,' ','minutes'),vjust=-0.25))
+```
+
+#counting casual and member riders and percentage
+```{r}
+rider_type <- data_03_07_22 %>% 
+  count(member_casual) %>% 
+  mutate(per=n/sum(n),percentage=paste0(round(per*100),'%'))
+```
+
+# bar plot for riders type against percentage
+```{r}
+ggplot(data = rider_type,aes(x =member_casual,y=percentage))+
+  geom_bar(stat="identity",aes(fill=member_casual))+
+  geom_text(aes(label=percentage,vjust=-0.25))
+```
+
+#top 6 stations  where most rides were started
+```{r}
+station_most_casual_riders <-data_03_07_22 %>% 
+   filter(member_casual=='casual') %>% 
+   count(start_station_name) %>% 
+   mutate(stations_rides=n) %>% 
+   arrange(-stations_rides) %>%
+   head()
+```
+
+#plot for rides on most starting stations
+```{r}
+ggplot(data = station_most_casual_riders,aes(x =start_station_name,y=stations_rides))+
+   geom_bar(stat="identity",aes(fill=start_station_name))+
+   geom_text(aes(label=stations_rides,vjust=-0.25))+
+   theme(axis.text.x = element_text(angle = 30))+
+   labs(title = " mostly casual rides on stations",
+   caption = "data is taken from divvy_tripdata.s3amazonaws.com")+
+   theme(plot.title=element_text(hjust=0.5),plot.caption=element_text(hjust=0.5))
+```
+
+#finding rides per day for casuals we have to add a new column(weekday)
+
+```{r}
+data_03_07_22 <- data_03_07_22 %>% 
+  mutate(weekday = weekdays(started_at, abbre=TRUE))
+```
+
+# plot for casual rides per day
+```{r}
+per_day <- data_03_07_22 %>% count(weekday) %>% mutate(rides=n)
+ggplot(data = per_day,aes(x =weekday,y=rides))+
+   geom_bar(stat="identity",aes(fill=weekday))+
+   geom_text(aes(label=rides,vjust=-0.25))+
+   labs(title = " Casual Rides each day",
+   caption = "data is taken from divvy_tripdata.s3amazonaws.com")+
+   theme(plot.title=element_text(hjust=0.5),plot.caption=element_text(hjust=0.5))
+```
+
+#line trend between hot and cold months
+    
+    ```{r}
+    #hot months
+    data_hot_months <- data_03_07_22 %>% 
+      filter(member_casual=='casual') %>% 
+      mutate(month= month(started_at, label=TRUE, abbr= TRUE)) %>% 
+      count(month) %>%
+      mutate(riders= n) %>% 
+      arrange(month)
+    ```
+    
+    
+    
+#cold months
+```{r}
+data_cold_months <- data_10_02_22 %>% 
+      filter(member_casual=='casual') %>% 
+      mutate(month= month(started_at, label=TRUE, abbr= TRUE)) %>% 
+      count(month) %>%
+      mutate(riders= n) %>% 
+      arrange(month)
+```
+
+    
+#merging both hot&cold months data
+```{r}
+both_hot_cold <- merge(data_hot_months,data_cold_months,all=TRUE)
+```    
+    
+# point plot for showing trend between hot and cold months
+    
+```{r}
+ggplot(data=both_hot_cold,aes(x=month,y=riders,color=riders))+
+      geom_point()+
+      labs(title = " Casual Riders according to each month",
+           caption = "data is taken from divvy_tripdata.s3amazonaws.com")+
+      theme(plot.title=element_text(hjust=0.5))
+```
+
+
+## Recommendations
+
+##1 trend of using bicycles is high in hot months so, there is no chance that   they will opt the annual member
+
+##2 bicycles usage is also high on saturday and sunday comparing to other days this information also giving us a hint that mostly riders would not like to become member.
+
+##3 we noticed that on some stations the trend of using bicycles is high however we have no information about those riders whether they are locals or tourists because we think this trend must be due to some important points/locations which attract the tourists. in my opinion we should get some more information about riders to get a good decision.
+
+
+
